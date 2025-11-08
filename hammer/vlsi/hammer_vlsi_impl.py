@@ -239,6 +239,7 @@ class HammerSRAMGeneratorTool(HammerTool):
 
     def generate_all_srams(self, corner: MMMCCorner) -> List[ExtraLibrary]:
         srams = list(map(lambda p: self.generate_sram(p, corner), self.input_parameters)) # type: List[ExtraLibrary]
+        srams = [s for s in srams if s is not None]
         return srams
 
     # Run compiler for a single sram and corner

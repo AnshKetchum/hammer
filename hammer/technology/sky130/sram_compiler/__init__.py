@@ -6,20 +6,24 @@ from hammer.vlsi import MMMCCorner, MMMCCornerType, HammerTool, HammerToolStep, 
 from hammer.tech import Corner, Supplies, Provide
 from hammer.vlsi.units import VoltageValue, TemperatureValue
 from hammer.tech import Library, ExtraLibrary
-from typing import NamedTuple, Dict, Any, List, Optional
+from typing import NamedTuple, Dict, Any, List
 from abc import ABCMeta, abstractmethod
 
 class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
     def tool_config_prefix(self) -> str:
+        print("sky130sramgenerator.tool_config_prefix")
         return "sram_generator.sky130"
 
     def version_number(self, version: str) -> int:
+        print("sky130sramgenerator.version_number", version, "version")
         return 0
 
     # Run generator for a single sram and corner
     def generate_sram(self, params: SRAMParameters, corner: MMMCCorner) -> ExtraLibrary:
         cache_dir = os.path.abspath(self.technology.cache_dir)
-        speed_name: Optional[str] = None
+
+        print("sky130sramgenerator.generate_sram", cache_dir, "cache_dir")
+
         #TODO: this is really an abuse of the corner stuff
         if corner.type == MMMCCornerType.Setup:
             speed_name = "slow"
@@ -35,7 +39,7 @@ class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
 
         if params.family != "1rw" and params.family != "1rw1r":
             self.logger.error("SKY130 SRAM cache does not support family:{f}".format(f=params.family))
-            return ExtraLibrary(prefix=None, library=None)  # type: ignore
+            return None
 
         if params.name.startswith("sram22"):
             self.logger.info(f"Compiling {params.family} memories to SRAM22 instances")
@@ -54,18 +58,20 @@ class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
             base_dir=self.get_setting('technology.sky130.sram22_sky130_macros')
 
             found = False
-            lib_path: Optional[str] = None
-            for fidelity in [".rcc", ".rc", ".c", ""]:
-                lib_path="{b}/{n}/{n}_{c}{f}.lib".format(b=base_dir,n=sram_name,c=corner_str, f=fidelity)
+            for fidelity in ["rcc", "rc", "c"]:
+                lib_path="{b}/{n}/{n}_{c}.lib".format(b=base_dir,n=sram_name,c=corner_str, f=fidelity)
+                print("Looking for", lib_path)
                 if os.path.exists(lib_path):
                     found = True
+                    print("Found sram", lib_path)
                     break
                 else:
                     self.logger.warning(f"SKY130 {params.name} SRAM cache does not support corner {corner_str} with {fidelity} extraction")
 
             if not found:
                 self.logger.error(f"SKY130 {params.name} SRAM cache does not support corner {corner_str}")
-            assert speed_name
+                return None
+
             return ExtraLibrary(prefix=None, library=Library(
                 name=sram_name,
                 nldm_liberty_file=lib_path,
@@ -105,7 +111,6 @@ class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
             self.setup_openram_lef(sram_name)
             self.setup_openram_verilog(sram_name)
             # self.setup_sram_lib(sram_name)
-            assert speed_name
             return ExtraLibrary(prefix=None, library=Library(
                 name=sram_name,
                 nldm_liberty_file="{b}/{n}/{n}_{c}.lib".format(b=base_dir,n=sram_name,c=corner_str),
@@ -122,6 +127,7 @@ class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
 
 
     def setup_openram_spice(self,sram_name) -> None:
+        print("sky130sramgenerator.sram_name", sram_name)
         source_path = Path(self.get_setting("technology.sky130.openram_lib")) / sram_name / f"{sram_name}.lvs.sp"
         dest_path = f"{os.path.abspath(self.technology.cache_dir)}/{sram_name}/{sram_name}.lvs.sp"
         self.technology.ensure_dirs_exist(dest_path)
@@ -140,6 +146,7 @@ class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
 
 
     def setup_openram_lef(self,sram_name) -> None:
+        print("sky130sramgenerator.setup_openram_lef", sram_name)
         source_path = Path(self.get_setting("technology.sky130.openram_lib")) / sram_name / f"{sram_name}.lef"
         dest_path = f"{os.path.abspath(self.technology.cache_dir)}/{sram_name}/{sram_name}.lef"
         self.technology.ensure_dirs_exist(dest_path)
@@ -162,6 +169,7 @@ class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
 
     def setup_openram_verilog(self, sram_name) -> None:
         """ Move 'mem' declaration before it is referenced in the verilog. """
+        print("sky130sramgenerator.setup_openram_verilog", sram_name)
         source_path = Path(self.get_setting("technology.sky130.openram_lib")) / sram_name / f"{sram_name}.v"
         dest_path = f"{os.path.abspath(self.technology.cache_dir)}/{sram_name}/{sram_name}.v"
         if not source_path.exists():
@@ -183,6 +191,7 @@ class SKY130SRAMGenerator(HammerSRAMGeneratorTool):
 
     def setup_sram_lib(self, sram_name) -> None:
         """ Flip endianness of SRAM ports. """
+        print("sky130sramgenerator.setup_sram_lib", sram_name)
         source_path = Path(self.get_setting("technology.sky130.openram_lib")) / sram_name / f"{sram_name}_TT_1p8V_25C.lib"
         dest_path = f"{os.path.abspath(self.technology.cache_dir)}/{sram_name}/{sram_name}.v"
         if not source_path.exists():
